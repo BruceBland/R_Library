@@ -1,0 +1,70 @@
+library(anomalize) #tidy anomaly detectiom
+library(tidyverse) #tidyverse packages like dplyr, ggplot, tidyr
+library(tibbletime)
+
+
+# Load all library functions required
+
+# Source the data functions to load multiple instruemnts
+GetData <- function(Instrument="",DataPath="D:\\Data",debug="Yes")
+{
+  
+  library(fst)
+  
+  # Lets store the Instrument with todays date
+  Today = Sys.Date()
+  destfile=paste(DataPath,"\\",Instrument,"-",Today,".CSV",sep="")
+  
+  
+  # Do we already have the data
+  if (file.exists(destfile)) {
+    
+    if (debug=="Yes") {print(paste("Found file already exists so loading now ...",destfile))}
+    InstrumentData <- read.fst(destfile,as.data.table = TRUE)
+    return(InstrumentData)
+    
+  } else {
+    
+    # Need to load from stooq
+    #print("Loading from Stooq")
+    
+    InstrumentData <- read.csv(paste("https://stooq.com/q/d/l/?s=",Instrument,"&i=d",sep=""))
+    
+    rownames(InstrumentData) <- InstrumentData$Date
+    InstrumentData$Date <- NULL
+    
+    InstrumentData <- as.data.frame(InstrumentData)
+    InstrumentData$Date <- as.Date(rownames(InstrumentData),"%Y-%m-%d")
+    
+    # Write file to FST format and then read back  
+    if (debug=="Yes") {print(paste("Found data now writing file for next time ...",destfile))}
+    write.fst(InstrumentData,destfile)
+    if (debug=="Yes") {print(paste("Reading file back in now ...",destfile))}
+    InstrumentData <- read.fst(destfile,as.data.table = TRUE)
+    
+    return(InstrumentData)
+    
+  }
+  
+}
+
+btc <- GetData("ZIV.US")
+
+#btc <- head(btc,1700)
+btc <- tail(btc,1000)
+
+btc <- data.frame(Price=btc$Close,date=btc$Date)
+rownames(btc) <- btc$date
+btc_ts <- btc %>% rownames_to_column() %>% as.tibble() %>% 
+  mutate(date = as.Date(rowname)) %>% select(-one_of('rowname'))
+
+Plot <- btc_ts %>% 
+  time_decompose(Price, method = "stl", frequency = "auto", trend = "auto") %>%
+  anomalize(remainder, method = "gesd", alpha = 0.05, max_anoms = 0.01) %>%
+  plot_anomaly_decomposition() 
+print(Plot)
+
+#Twit <- decompose_twitter(btc_ts, Price, frequency = "auto", trend = "auto", message = TRUE)
+#Stl <- decompose_stl(btc_ts, Price, frequency = "auto", trend = "auto", message = TRUE)
+#plot(Stl$date,Stl$trend)
+#plot(Stl$date,Stl$remainder)
