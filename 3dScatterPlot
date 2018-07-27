@@ -1,0 +1,21 @@
+# Example of using a 3d plot in R
+#
+
+library(scatterplot3d)
+
+SlippageArrivalTicks <- SlippageByLevel$MeanArrivalSlip
+TimeInSecs <- SlippageByLevel$Time
+PassiveLevel <- SlippageByLevel$Level
+
+scatterplot3d(TimeInSecs, PassiveLevel, SlippageArrivalTicks, highlight.3d = FALSE,
+              col.axis = "blue",
+              col.grid = "lightblue", 
+              main = "Slippage from Arrival (Ticks)", 
+              type= "h",
+              x.ticklabs = unique(SlippageByLevel$Time),
+              y.ticklabs = c(0,0.5,1,1.5,2),
+              xlab = "Time in Secs",
+              ylab = "Level",
+              zlab = "Slippage",
+              pch = 20,
+              angle = 55)
