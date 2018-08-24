@@ -1,0 +1,45 @@
+
+# Create an example data set
+tmp <- data.frame(x=gl(2,3),  # gl generates levels as factors
+                  y=gl(3,1,6), 
+                  z=c(2,1,2,9,2,0))
+
+print("Original data")
+print(tmp)
+
+# reshape to a matrix
+library(reshape2)
+matrix <- acast(tmp, x~y, value.var="z")
+
+# prove its a matrix
+print(class(matrix))
+
+# Now chart
+rownames(matrix)
+x <- as.numeric(rownames(matrix))
+y <- as.numeric(colnames(matrix))
+z <- matrix
+print(z)
+
+library(plot3D)
+library(akima)
+persp3D(x,                  # X 
+        y,                  # Y
+        z,                  # Z as matrix 
+        theta=325, 
+        phi=15, 
+        axes=TRUE,
+        scale=2, 
+        box=TRUE, 
+        nticks=5,
+        ticktype="detailed",
+        xlab="X", 
+        ylab="Y", 
+        zlab="Z", 
+        main="XYZ Plot", 
+        xlim=c(0, 10), 
+        ylim=c(0, 10),
+        zlim=c(0, 10),
+        facets=FALSE, 
+        curtain=FALSE)
+
