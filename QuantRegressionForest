@@ -1,0 +1,153 @@
+# Quant Regression Forests
+# ========================
+# Quantile Regression Forests is a tree-based ensemble
+# method for estimation of conditional quantiles. It is
+# particularly well suited for high-dimensional data. Predictor
+# variables of mixed classes can be handled. The package is
+# dependent on the package 'randomForest', written by Andy Liaw
+
+# Created by B. G. Bland
+
+library(quantregForest)
+
+# Load Stooq data
+GetData <- function(Instrument="",DataPath="C:\\Data",DebugThis=TRUE)
+{
+  
+  library(fst)
+  
+  # Lets store the Instrument with todays date
+  Today = Sys.Date()
+  destfile=paste(DataPath,"\\",Instrument,"-",Today,".CSV",sep="")
+  
+  
+  # Do we already have the data
+  if (file.exists(destfile)) {
+    
+    if (DebugThis==TRUE) {print(paste("Found file already exists so loading now ...",destfile))}
+    
+    InstrumentData <- read.fst(destfile,as.data.table = TRUE)
+    
+    return(InstrumentData)
+    
+  } else {
+    
+    if (DebugThis==TRUE) {print(paste("Loading from Stooq ..."))}
+    
+    InstrumentData <- read.csv(paste("https://stooq.com/q/d/l/?s=",Instrument,"&i=d",sep=""))
+    
+    # Create rownames
+    rownames(InstrumentData) <- InstrumentData$Date
+    InstrumentData$Date <- NULL
+    
+    # Convert the data format
+    InstrumentData <- as.data.frame(InstrumentData)
+    InstrumentData$Date <- as.Date(rownames(InstrumentData),"%Y-%m-%d")
+    
+    # Write file to FST format and then read back  
+    if (DebugThis==TRUE) {print(paste("Found data now writing file for next time ...",destfile))}
+    write.fst(InstrumentData,destfile)
+    
+    if (DebugThis==TRUE) {print(paste("Reading file back in now ...",destfile))}
+    InstrumentData <- read.fst(destfile,as.data.table = TRUE)
+    
+    return(InstrumentData)
+    
+  }
+  
+}
+
+# Get TSLA Data
+DataFrame <- GetData("BARC.UK","D:\\DATA",DebugThis=TRUE)
+
+DataFrame <- tail(DataFrame,9000)
+
+DataFrame$Month <- as.numeric(substring(DataFrame$Date,6,7))
+DataFrame$Day <- as.numeric(substring(DataFrame$Date,9,10))
+DataFrame$PrevClose <- c(0,head(DataFrame$Close,nrow(DataFrame)-1))
+DataFrame$PrevVolume <- c(0,head(DataFrame$Volume,nrow(DataFrame)-1))
+DataFrame$PrevPrevClose <- c(0,head(DataFrame$PrevClose,nrow(DataFrame)-1))
+DataFrame$Open <- NULL
+DataFrame$High <- NULL
+DataFrame$Low <- NULL
+DataFrame$Date <- NULL
+DataFrame$Volume <- NULL
+
+print(head(DataFrame,4))
+
+################################################
+## Load air-quality data (and preprocessing) ##
+################################################
+set.seed(1)
+
+DataFrame <- na.omit(DataFrame)
+
+## number of samples
+n <- nrow(DataFrame)
+PercentStart <- round(n * 0.995) # 90% of data
+
+print(paste("Percent start .. ", PercentStart))
+
+## divide into training and test data
+#indextrain <- sample(1:n,round(0.6*n),replace=FALSE)
+
+Xtrain <- DataFrame[1:PercentStart,2:6]
+Xtest <- DataFrame[(PercentStart+1):n,2:6]
+
+Ytrain <- DataFrame[1:PercentStart,1]$Close
+Ytest <- DataFrame[(PercentStart+1):n,1]$Close
+
+class(Ytrain)
+plot(Ytrain)
+
+################################################
+## compute Quantile Regression Forests ##
+################################################
+
+print(paste("N rows in Xtrain",nrow(Xtrain)))
+summary(Xtrain)
+print(paste("N rows in Ytrain",nrow(Ytrain)))
+summary(Ytrain)
+
+qrf <- quantregForest(x=Xtrain, y=Ytrain, nodesize=10,sampsize=50)
+
+## predict 0.1, 0.5 and 0.9 quantiles for test data
+conditionalQuantiles <- predict(qrf, Xtest)
+#print(conditionalQuantiles[1:4,])
+#plot(conditionalQuantiles)
+
+## predict 0.1, 0.2,..., 0.9 quantiles for test data
+conditionalQuantiles <- predict(qrf, Xtest, what=c(0.4,0.5,0.6))
+#print(conditionalQuantiles[1:4,])
+
+## estimate conditional standard deviation
+conditionalSd <- predict(qrf, Xtest, what=sd)
+#print(conditionalSd[1:4])
+
+## estimate conditional mean (as in original RF)
+conditionalMean <- predict(qrf, Xtest, what=mean)
+#print(conditionalMean[1:4])
+
+# Add all info together
+ConditionalInfo <- cbind(Xtest,conditionalQuantiles,conditionalSd,conditionalMean)
+ConditionalInfo <- as.data.frame(ConditionalInfo)
+
+ConditionalInfo$Actual <- Ytest
+plot(ConditionalInfo$Actual)
+plot(ConditionalInfo$`quantile= 0.5`)
+plot(ConditionalInfo$Actual,ConditionalInfo$`quantile= 0.5`)
+#plot(conditionalSd)
+
+# reformat data
+ConditionalInfo$Error <- ConditionalInfo$`quantile= 0.5` - ConditionalInfo$Actual
+
+print(ConditionalInfo)
+
+## to use other functions of the package randomForest, convert class back
+class(qrf) <- "randomForest"
+print(importance(qrf)) ## importance measure from the standard RF
+
+# Calculate the RMSE and return it as part of the function
+RMSE <- sqrt(sum(ConditionalInfo$Error^2))
+ReturnDataFrame <- data.frame(Desc=paste("RMS Error"),RMSE=RMSE)
+print(ReturnDataFrame)
