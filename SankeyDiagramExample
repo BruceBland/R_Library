@@ -1,0 +1,36 @@
+#########################################################
+#
+# Quick example of a Sankey diagram
+#
+#########################################################
+#
+# Created by B. G. Bland
+#
+library(networkD3)
+library(tidyverse)
+
+Banks <- c("Bank1","Bank1")
+Accounts <- c("000001","000002")
+Values <- c(600,700)
+
+AccountsDF <- data.frame(Bank=Banks,Account=Accounts,Value=Values)
+
+AccountsDF$share <- AccountsDF$Value / sum(AccountsDF$Value) * 100
+
+df <- AccountsDF %>%
+  mutate_each(funs(as.character), Bank, Account) %>%
+  mutate(bn = group_indices_(., .dots = "Bank"), 
+         cn = max(bn) + row_number()) 
+
+links <- select(df, bn, cn, share)
+nodes <- data.frame(name = c("", sort(unique(df$Bank)), df$Account))
+
+SankeyDiagram <- sankeyNetwork(Links = links, Nodes = nodes, 
+                    Source = "bn", Target = "cn", Value = "share", 
+                    NodeID = "name",
+                   fontSize = 16, 
+                   nodeWidth = 10, # In pixels
+                   height = 100,   # In pixels
+                   width=200)      # In pixels
+
+print(SankeyDiagram)
