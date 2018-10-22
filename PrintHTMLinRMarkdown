@@ -1,0 +1,9 @@
+# Now print out the sankey diagram
+library(magrittr)
+library(htmltools)
+
+# First we save to a file
+saveNetwork(SankeyDiagram,file = 'c:\\Network.html')
+
+# The we include the HTML in the document
+htmltools::includeHTML("c:\\Network.html")
