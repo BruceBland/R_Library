@@ -1,0 +1,17 @@
+# Example Rug Plot with GGPLOT2
+
+x<-rnorm(300)
+y<-rt(300,df=10)
+xy<-data.frame(x,y)
+
+require(ggplot2); require(grid)
+
+# Basic X, Y plot with rug
+RugPlot <- ggplot(xy, aes(x, y)) +        
+  # specify points
+  geom_point() +
+  # specify that we want the rug plot
+  geom_rug(size=1,col="red",alpha=.1) 
+
+
+print(RugPlot)
