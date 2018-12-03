@@ -1,0 +1,19 @@
+library(DiagrammeR)
+
+print(mermaid("
+gantt
+dateFormat  YYYY-MM-DD
+title Hutch's
+
+section Opposite Wall
+Hutch 1 Top (Bill)            : 2014-01-06, 2014-01-08
+Hutch 1 Bottom  (Ben)         : 2014-01-09, 2014-01-12
+Hutch 2 Top                   : 2014-01-13, 2014-01-14
+Hutch 2 Bottom                : 2014-01-15, 2014-01-20
+
+section Far Wall
+Hutch 1 Top (Bill)            : done,2014-01-06, 2014-01-08
+Hutch 1 Bottom  (Ben)         : 2014-01-09, 2014-01-12
+Hutch 2 Top                   : 2014-01-13, 2014-01-14
+Hutch 2 Bottom                : 2014-01-15, 2014-01-20
+"))
