@@ -1,0 +1,64 @@
+
+# Function to lag data by any given time period
+LagDataFrame <- function(DataFrame="",
+                         Column="",
+                         Periods="",
+                         MissingValues=NA,
+                         KeepAll=TRUE,
+                         Backwards=TRUE)
+{
+  # Select the column to be used
+  NewData <- DataFrame[,Column]
+  NewDataFrame <- DataFrame
+  if (Backwards == TRUE)
+  {
+    ColNameExtension <- "_step_back"
+  } else 
+  {
+    ColNameExtension <- "_step_forward"
+  }
+    
+  # Now loop to get to the period required
+  for (i in seq(1,Periods))
+  {
+   # Create new column to put lagged data into
+   NewCol <- paste(Column,"_",i,ColNameExtension,sep="")
+   
+   # Now create the lagged data by 1 period back or forwards
+   if (Backwards == TRUE)
+   {
+      NewData <- c(MissingValues,head(NewData,length(NewData)-1))
+   } else {
+      NewData <- c(tail(NewData,length(NewData)-1),MissingValues)
+   }
+   
+   # Create new data frame with the column so we can add to the existing data frame
+   NewColDataFrame <- as.data.frame(NewData)
+   colnames(NewColDataFrame) <- c(NewCol)
+   
+   # Now store all the previous values or just keep the last one we got to
+   if (KeepAll==TRUE)
+   {
+    NewDataFrame <- cbind(NewDataFrame,NewColDataFrame)
+   } else {
+     NewDataFrame <- cbind(DataFrame,NewColDataFrame)
+   }
+  }
+  
+  # Return the data frame
+  return(NewDataFrame)
+}
+
+# Test the code
+df <- data.frame(X=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14),
+                 Y=c(.1,.2,.3,.4,.5,.6,.7,.8,.9,.10,.11,.12,13,14))
+
+df <- LagDataFrame(DataFrame=df,     # Data frame name
+                   Column="X",       # Name of the column to be adjusted
+                   Periods=5,        # Number of intervals to go backwards or forwards
+                   MissingValues=NA, # What do you want the missing values to be (use NA so you can remove with na.omit())
+                   KeepAll=FALSE,    # Create columns for all periods in between
+                   Backwards=TRUE)   # Set to true to create next values (ie n periods in the future)
+
+print(df)
+
