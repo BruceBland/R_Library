@@ -1,0 +1,209 @@
+set.seed(20)
+
+# kmeans clustering model
+
+DataFrame = iris
+DataFrame$Species <- NULL
+
+Clusters <- kmeans(DataFrame, 3)
+
+DataFrame$ClusterGroup <- Clusters$cluster
+
+DataFrame$Species <- iris$Species
+
+
+DataFrame <- DataFrame[order(DataFrame$ClusterGroup),]
+
+plot(DataFrame$Species,DataFrame$ClusterGroup)
+
+print("K-Means")
+print(table(DataFrame$Species,DataFrame$ClusterGroup))
+
+# hierachical k-means
+library(factoextra)
+
+DataFrame = iris
+DataFrame$Species <- NULL
+
+Clusters <- hkmeans(DataFrame, 3)
+
+DataFrame$ClusterGroup <- Clusters$cluster
+
+DataFrame$Species <- iris$Species
+
+
+DataFrame <- DataFrame[order(DataFrame$ClusterGroup),]
+
+#plot(DataFrame$Species,DataFrame$ClusterGroup)
+
+print("HK-Means")
+print(table(DataFrame$Species,DataFrame$ClusterGroup))
+
+# Visualize the tree
+#print(fviz_dend(Clusters, cex = 0.6, palette = "jco", 
+#          rect = TRUE, rect_border = "jco", rect_fill = TRUE))
+
+print(fviz_cluster(Clusters, palette = "jco",
+                   repel = TRUE,
+                   ellipse.level = 0.95,
+                   ggtheme = theme_minimal(),
+                   legend = "right"))
+
+
+# Fuzzy clustering
+# Computes the mebersip of each group
+library(cluster)
+
+DataFrame = iris
+DataFrame$Species <- NULL
+
+df <- scale(DataFrame)     # Standardize the data
+
+Clusters <- fanny(df, 3,metric = "euclidean", stand = FALSE)  # Compute fuzzy clustering with k = 3
+
+DataFrame$ClusterGroup <- Clusters$cluster
+
+DataFrame$Species <- iris$Species
+
+DataFrame <- DataFrame[order(DataFrame$ClusterGroup),]
+
+#plot(DataFrame$Species,DataFrame$ClusterGroup)
+
+print("Fuzzy Clustering")
+print(table(DataFrame$Species,DataFrame$ClusterGroup))
+
+# Print probabilities of being in each group
+print("Probability Membership found by Fuzzy Clustering")
+print(head(Clusters$membership))
+
+print(fviz_cluster(Clusters, ellipse.type = "norm",
+                   repel = TRUE,
+                   ellipse.level = 0.95,
+                   palette = "jco",
+                   ggtheme = theme_minimal(),
+                   legend = "right"))
+
+
+FuzzyCMeansClustering <- function(DataFrame="",
+                                 Columns="",
+                                 GroupColumnName="MBC",
+                                 NumberOfClusters="",
+                                 ScaleData = TRUE,
+                                 PlotModel = TRUE,
+                                 Debug=TRUE)
+{
+  # Compute fuzzy clustering
+  library(e1071)
+  
+  if (Columns == "")
+  {
+    Columns <- colnames(DataFrame)
+  }
+  
+  if (ScaleData ==  TRUE)
+  {
+    df <- scale(DataFrame)     # Standardize the data
+  } else {
+    df <- DataFrame            # Not required (Might already be scaled)
+  }
+  
+  if (NumberOfClusters == 0)
+  {
+    print("Using 5 as a default ... may not be optimal")
+    Clusters <- cmeans(df,5)
+    
+  } else {
+    
+    Clusters <- cmeans(df,NumberOfClusters)
+    
+  }
+  
+  DataFrame$ClusterGroup <- Clusters$cluster
+  DataFrame$membership  <- Clusters$membership
+  
+  if (PlotModel == TRUE)
+  {
+    print(fviz_cluster(list(data=df,cluster=Clusters$cluster),
+                       ellipse.type = "norm",
+                       repel = TRUE,
+                       ellipse.level = 0.95,
+                       palette = "jco",
+                       ggtheme = theme_minimal(),
+                       legend = "right"))
+    
+  }
+  
+  return(DataFrame)
+  
+}
+
+# Get data
+DataFrame = iris
+DataFrame$Species <- NULL  # Remove the Species
+
+NewDataFrame <- FuzzyCMeansClustering(DataFrame = DataFrame,
+                                     Columns="",
+                                     GroupColumnName="MBC",
+                                     NumberOfClusters=0,
+                                     ScaleData = TRUE,
+                                     PlotModel = TRUE,
+                                     Debug=TRUE)
+print(head(NewDataFrame))
+
+
+# Model Based Clustering (Gaussian Mixture Modelling for Model-Based Clustering,
+# Classification, and Density Estimation)
+ModelBasedClustering <- function(DataFrame="",
+                                 Columns="",
+                                 GroupColumnName="MBC",
+                                 NumberOfClusters="",
+                                 ScaleData = TRUE,
+                                 PlotModel = TRUE,
+                                 Debug=TRUE)
+{
+  
+  library(mclust)
+  
+  if (Columns == "")
+  {
+    Columns <- colnames(DataFrame)
+  }
+  
+  if (ScaleData ==  TRUE)
+  {
+    df <- scale(DataFrame)     # Standardize the data
+  } else {
+    df <- DataFrame            # Not required (Might already be scaled)
+  }
+  
+  if (NumberOfClusters == 0)
+  {
+    Clusters <- Mclust(df)
+  } else {
+    Clusters <- Mclust(df,NumberOfClusters)
+  }
+  
+  DataFrame$ClusterGroup <- Clusters$classification
+  DataFrame$membership <- 1 - Clusters$uncertainty
+  
+  if (PlotModel == TRUE) {plot(Clusters,what = c("density"))}  # "BIC", "density", "diagnostic"
+  
+  if (Debug == TRUE) {print(paste("Number of observations",fit$n))}
+  if (Debug == TRUE) {print(paste("Number of groups",fit$G))}
+
+  return(DataFrame)
+  
+}
+
+# Get data
+DataFrame = iris
+DataFrame$Species <- NULL  # Remove the Species
+
+NewDataFrame <- ModelBasedClustering(DataFrame = DataFrame,
+                     Columns="",
+                     GroupColumnName="MBC",
+                     NumberOfClusters=0,
+                     ScaleData = TRUE,
+                     PlotModel = TRUE,
+                     Debug=TRUE)
+print(head(NewDataFrame))
