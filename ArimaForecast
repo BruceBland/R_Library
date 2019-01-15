@@ -1,0 +1,18 @@
+# Load Barclays
+DataLoadParameters <- list()
+DataLoadParameters$Instrument <- "MSFT.US"
+df <- DataLoadAndFormat(DataLoadParameters=DataLoadParameters)
+
+# Convert to monthly data
+rownames(df) <- df$Date
+df$Date <- NULL
+samplexts <- as.xts(df)
+
+ts <- to.monthly(samplexts)
+ts$samplexts.Open <- NULL
+ts$samplexts.High <- NULL
+ts$samplexts.Low <- NULL
+
+library("forecast")
+Forecast <- forecast(auto.arima(ts),h=2)
+print(hchart(Forecast))
