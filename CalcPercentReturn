@@ -1,0 +1,68 @@
+
+# Calculte the percentage return form n moves ago
+CalcPercentReturn <- function(DataFrame="",Column="",NBack=1,KeepActual=TRUE,Percent=TRUE,TRIM=TRUE,BP=FALSE)
+{
+  # Get the column required
+  ColumnData <- DataFrame[,Column]
+  
+  # Length of data
+  NRows <- length(ColumnData)
+  
+  # Now get the previous data
+  PrevColumn <- c(rep(NA,NBack),head(ColumnData,NRows-NBack))
+  
+  # Calc the percentage change
+  PercentReturnsColumn <- (ColumnData - PrevColumn) / PrevColumn * 100
+  
+  # Calc BP Value
+  if (BP == TRUE)
+  {
+    PercentReturnsColumn <- PercentReturnsColumn * 100
+  }
+  
+  # User does not want both columns we will delete this one
+  if (KeepActual == TRUE)
+  {
+    # Put the column back
+    DataFrame <- cbind(DataFrame,PrevColumn)
+    
+    # Rename the column
+    CurrentNames <- colnames(DataFrame)
+    CurrentNames[length(CurrentNames)] <- paste(Column,"_Prev_",NBack,"_Back",sep="")
+    colnames(DataFrame) <- CurrentNames
+  
+  }
+  
+  # Put the column back
+  DataFrame <- cbind(DataFrame,PercentReturnsColumn)
+  
+  # Rename the column
+  CurrentNames <- colnames(DataFrame)
+  if (BP == TRUE)
+  {
+    CurrentNames[length(CurrentNames)] <- paste(Column,"_Prev_",NBack,"_Back_Pct",sep="")
+  } else {
+    CurrentNames[length(CurrentNames)] <- paste(Column,"_Prev_",NBack,"_Back_PctBP",sep="")
+  }
+  colnames(DataFrame) <- CurrentNames
+  
+  # Remove the NAs
+  if(TRIM==TRUE){
+    DataFrame <- na.omit(DataFrame)
+  }
+  
+  return(DataFrame)    
+}
+
+# Calculate the prev % move
+DataFrame <- as.data.frame(EuStockMarkets)
+NewDataFrame <- CalcPercentReturn(DataFrame=DataFrame,
+                                  Column="FTSE",
+                                  NBack=2,
+                                  KeepActual=TRUE,
+                                  Percent=TRUE,
+                                  TRIM=TRUE,
+                                  BP=TRUE)
+
+
+print(head(NewDataFrame,15))
