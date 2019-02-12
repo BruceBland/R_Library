@@ -1,0 +1,18 @@
+CorrelationPlot <- function(DataFrame="",Debug="")
+{
+  library(ggcorrplot)
+  
+  # Calculate the Correlation matrix
+  corr <- round(cor(DataFrame), 2)
+  
+  # Plot
+  a <- ggcorrplot(corr, hc.order = TRUE, 
+             type = "lower", 
+             lab = TRUE, 
+             lab_size = 3, 
+             method="circle", 
+             colors = c("red", "white", "blue"), 
+             title="Correlogram of Basic Data", 
+             ggtheme=theme_AI)
+  print(a)
+}
