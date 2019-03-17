@@ -1,0 +1,126 @@
+##############################################
+#
+# Get the isd history files for noaa ftp site
+#
+#############################################
+
+
+a <- read.csv("ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.txt",skip=20)
+
+b <- a[,1]
+
+c <- gsub('[\t\n]', '', b)
+
+# Split up the string into columns
+USAF <- substring(c,1,6)
+WBAN <- substring(c,8,12)
+CTRY  <- substring(c,14,43)
+ST <- substring(c,44,57)
+LAT <- substring(c,58,64)
+LON <- substring(c,66,73)
+Elevation <- substring(c,74,81)
+StartDate <- substring(c,83,90)
+EndDate <- substring(c,92,100)
+
+# Create a new data frame
+LocationsDF <- data.frame(USAF,
+                          WBAN,
+                          CTRY,
+                          ST,
+                          LAT,
+                          LON,
+                          Elevation,
+                          StartDate,
+                          EndDate)
+
+# Now filter out all which dont have upto date recordings
+Year <- substring(LocationsDF$EndDate,1,4)
+Year2019 <- grep("2019",Year)
+LocationsDF2019 <- LocationsDF[Year2019,]
+
+#Now filter all with UK
+UK <- substring(LocationsDF2019$ST,1,2)
+UKST <- grep("UK",UK)
+LocationsDF2019UK <- LocationsDF2019[UKST,]
+
+print(LocationsDF2019UK$StartDate)
+
+#############################################################
+#
+# Now get the weather station data for current year
+#
+#############################################################
+#
+# For detail of this data see ftp://ftp.ncdc.noaa.gov/pub/data/gsod/GSOD_DESC.txt
+#
+
+GetWeatherData <- function(USAF="",WBAN="",StartDate="",EndDate="")
+{
+
+  # Get the current year if no start date given
+  if (StartDate == "")
+  {
+    year <- substring(as.character(Sys.Date()),1,4)
+  } else {
+    year <- substring(StartDate,1,4)
+  }
+  
+  # If not given then set the end year to be this year
+  if (EndDate == "")
+  {
+    endyear <- substring(as.character(Sys.Date()),1,4)
+  }
+  
+  # Create sequence of year
+  AllYears <- seq(as.numeric(year),as.numeric(endyear))
+  print(AllYears)
+  AllData <- NULL
+  for (year in AllYears)
+  {
+    thisyear <- as.character(year)
+    
+    # Get the location of the files
+    FTPLocation <- paste0("ftp://ftp.ncdc.noaa.gov/pub/data/gsod/",thisyear,"/",USAF,"-",WBAN,"-",thisyear,".op.gz")
+    
+    # Now down load
+    print(FTPLocation)
+    download.file(FTPLocation,destfile="WeatherStationData.op.gz",mode="wb")
+    
+    # Now format the data so we can store it
+    classes <- c(rep("factor",3),rep("numeric",14),rep("factor",3),rep("numeric",2))
+    
+    # Old row without error handling
+    #data <- read.table(gzfile("WeatherStationData.op.gz",open="rt"),sep="",header=F,skip=1,colClasses=classes)
+    
+    data <- tryCatch(
+      {
+        read.table(gzfile("WeatherStationData.op.gz",open="rt"),sep="",header=F,skip=1,colClasses=classes)
+      },
+      error=function(cond) {
+        message(paste("No data in file for year: ",thisyear))
+        return(NA)
+      },
+    #  warning=function(cond) {
+    #    message(paste("Warning in file for year", thisyear))
+    #    return(NA)
+    #  },
+      finally={
+        print(paste("Finished getting data for year",thisyear))
+      }
+    ) 
+    
+    if (is.na(data)==FALSE)
+    {
+      colnames(data) <- c("Station_number","Weather_Bureau_Air_Force_Navy","DATE","Mean_temperature_F","TEMP_COUNT","Mean_dew_point","DEWP_COUNT","Mean_Sea_Level_Pressure","SLP_COUNT" ,"Mean_station_pressure ", "STP_COUNT","Mean_visibility","VIS_COUNT","Mean_wind_speed ","MWS_COUNT" ,"MXSPD","GUST","MAX_TEMP","MIN_TEMP","TotalRainInch","Snow_depth_in_inches","Fog_Rain_Snow_Hail_Thunder_Tornado")
+      AllData <- rbind(AllData,data)
+    }
+  }
+  
+  return(AllData)
+
+}
+
+WeatherData <- GetWeatherData(USAF=LocationsDF2019UK$USAF[1],WBAN=LocationsDF2019UK$WBAN[1],StartDate=LocationsDF2019UK$StartDate[1])
+print(head(WeatherData))
+print(tail(WeatherData))
+plot(as.numeric(WeatherData$Mean_dew_point))
