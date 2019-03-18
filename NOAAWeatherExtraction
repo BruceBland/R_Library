@@ -1,0 +1,211 @@
+##############################################
+#
+# Get the isd history files for noaa ftp site
+#
+#############################################
+
+
+a <- read.csv("ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.txt",skip=20)
+
+b <- a[,1]
+
+c <- gsub('[\t\n]', '', b)
+
+# Split up the string into columns
+USAF <- substring(c,1,6)
+WBAN <- substring(c,8,12)
+CTRY  <- substring(c,14,43)
+ST <- substring(c,44,57)
+LAT <- substring(c,58,64)
+LON <- substring(c,66,73)
+Elevation <- substring(c,74,81)
+StartDate <- substring(c,83,90)
+EndDate <- substring(c,92,100)
+StartDateAsDate <- as.Date(StartDate,"%Y%m%d")
+EndDateAsDate <- as.Date(EndDate,"%Y%m%d")
+Country <- substring(ST,1,2)
+
+# Create a new data frame
+LocationsDF <- data.frame(USAF,
+                          WBAN,
+                          CTRY,
+                          ST,
+                          Country,
+                          LAT,
+                          LON,
+                          Elevation,
+                          StartDate,
+                          StartDateAsDate,
+                          EndDate,
+                          EndDateAsDate)
+
+# Now filter out all which dont have upto date recordings
+Startdates <- c("01/01/1940")
+Startdates <- as.Date(Startdates, "%m/%d/%Y")
+LocationsDF <- subset(LocationsDF,StartDateAsDate < Startdates)
+
+Enddates <- c("01/01/2019")
+Enddates <- as.Date(Enddates, "%m/%d/%Y")
+LocationsDF <- subset(LocationsDF,EndDateAsDate > Enddates)
+
+#Now filter all with UK
+#LocationsDF2019UK <- subset(LocationsDF,Country == "UK" | Country == "NO" | Country == "SW" | Country == "BE")
+LocationsDF2019UK <- subset(LocationsDF,Country == "US")
+
+LocationsDF2019UK <- head(LocationsDF2019UK,10)
+
+#############################################################
+#
+# Now get the weather station data for current year
+#
+#############################################################
+#
+# For detail of this data see ftp://ftp.ncdc.noaa.gov/pub/data/gsod/GSOD_DESC.txt
+#
+
+GetWeatherData <- function(USAF="",WBAN="",StartDate="",EndDate="")
+{
+  
+  # Get the current year if no start date given
+  if (StartDate == "")
+  {
+    year <- substring(as.character(Sys.Date()),1,4)
+  } else {
+    year <- substring(StartDate,1,4)
+  }
+  
+  # If not given then set the end year to be this year
+  if (EndDate == "")
+  {
+    endyear <- substring(as.character(Sys.Date()),1,4)
+  }
+  
+  # Create sequence of year
+  AllYears <- seq(as.numeric(year),as.numeric(endyear))
+  print(AllYears)
+  AllData <- NULL
+  for (year in AllYears)
+  {
+    thisyear <- as.character(year)
+    
+    # Get the location of the files
+    FTPLocation <- paste0("ftp://ftp.ncdc.noaa.gov/pub/data/gsod/",thisyear,"/",USAF,"-",WBAN,"-",thisyear,".op.gz")
+    
+    # Now down load
+    print(FTPLocation)
+    download.file(FTPLocation,destfile="WeatherStationData.op.gz",mode="wb")
+    
+    # Now format the data so we can store it
+    classes <- c(rep("factor",3),rep("numeric",14),rep("factor",3),rep("numeric",2))
+    
+    # Handle Errors reading the file
+    data <- tryCatch(
+      {
+        read.table(gzfile("WeatherStationData.op.gz",open="rt"),sep="",header=F,skip=1,colClasses=classes)
+      },
+      error=function(cond) {
+        message(paste("No data in file for year: ",thisyear))
+        return(NA)
+      },
+      #  warning=function(cond) {
+      #    message(paste("Warning in file for year", thisyear))
+      #    return(NA)
+      #  },
+      finally={
+        print(paste("Finished getting data for year",thisyear))
+      }
+    ) 
+    
+    if (is.na(data)==FALSE)
+    {
+      colnames(data) <- c("Station_number","Weather_Bureau_Air_Force_Navy","DATE","Mean_temperature_F","TEMP_COUNT","Mean_dew_point","DEWP_COUNT","Mean_Sea_Level_Pressure","SLP_COUNT" ,"Mean_station_pressure ", "STP_COUNT","Mean_visibility","VIS_COUNT","Mean_wind_speed ","MWS_COUNT" ,"MXSPD","GUST","MAX_TEMP","MIN_TEMP","TotalRainInch","Snow_depth_in_inches","Fog_Rain_Snow_Hail_Thunder_Tornado")
+      AllData <- rbind(AllData,data)
+    }
+  }
+  
+  return(AllData)
+  
+}
+
+AllWeatherStations <- NULL
+NoUKStations <- nrow(LocationsDF2019UK)
+for (i in seq(1,NoUKStations))
+{
+  WeatherData <- GetWeatherData(USAF=LocationsDF2019UK$USAF[i],WBAN=LocationsDF2019UK$WBAN[i],StartDate=LocationsDF2019UK$StartDate[i])
+  AllWeatherStations <- rbind(AllWeatherStations,WeatherData)
+}
+
+# Now save the file
+write.csv(AllWeatherStations,"AllWeatherStationsUS.csv")
+
+# Print out all mean temps
+AllWeatherStations$DateAsDate <- as.Date(AllWeatherStations$DATE,"%Y%m%d")
+TempPlot <- ggplot(AllWeatherStations,aes(x=DateAsDate,y=Mean_temperature_F)) +
+  geom_point(aes(colour=Station_number),alpha=0.2) +
+  geom_smooth(method="lm")
+print(TempPlot)
+
+
+library(tidyverse)
+AllWeatherStations$Year <- substring(AllWeatherStations$DATE,1,4)
+SummaryTemps <- AllWeatherStations %>%
+  group_by(Station_number,Year) %>%
+  summarise(Median = median(Mean_temperature_F),
+            Mean = mean(Mean_temperature_F),
+            SD = sd(Mean_temperature_F),
+            Count = length(Mean_temperature_F),
+            MedianWind = mean(`Mean_wind_speed `),
+            MeanWind = mean(`Mean_wind_speed `),
+            SDWind = mean(`Mean_wind_speed `)) %>%
+  mutate(Year = as.numeric(as.character(Year))) %>%
+  filter(MedianWind < 400) %>%
+  filter(Count > 360) %>%
+  filter(Year > 1930) %>%
+  arrange(Year)
+
+plot(SummaryTemps$Year,SummaryTemps$Mean)
+plot(SummaryTemps$Year,SummaryTemps$Count)
+plot(SummaryTemps$Year,SummaryTemps$MedianWind)
+
+TempPlot <- ggplot(SummaryTemps,aes(x=Year,y=Mean)) +
+              geom_point(aes(colour=Station_number)) +
+              geom_line(aes(colour=Station_number))
+print(TempPlot)
+
+# Now by year only
+SummaryTemps <- AllWeatherStations %>%
+  group_by(Year) %>%
+  summarise(Median = median(Mean_temperature_F),
+            Mean = mean(Mean_temperature_F),
+            SD = sd(Mean_temperature_F),
+            Count = length(Mean_temperature_F),
+            MedianWind = mean(`Mean_wind_speed `),
+            MeanWind = mean(`Mean_wind_speed `),
+            SDWind = mean(`Mean_wind_speed `)) %>%
+  mutate(Year = as.numeric(as.character(Year))) %>%
+  filter(MedianWind < 400) %>%
+  filter(Count > 364) %>%
+  filter(Year > 1930) %>%
+  filter(Year < 2019) %>%
+  arrange(Year)
+
+TempPlot <- ggplot(SummaryTemps,aes(x=Year,y=Mean)) +
+  geom_point(aes(colour=SD)) +
+  geom_line() +
+  geom_smooth(method="loess",span = 0.2,colour="red",alpha=0.1) +
+  geom_smooth(method="lm",alpha=0.1) 
+print(TempPlot)
+
+TempPlot <- ggplot(SummaryTemps,aes(x=Year,y=MeanWind)) +
+  geom_point(aes(colour=SDWind)) +
+  geom_line() +
+  geom_smooth(method="loess",span = 0.2,colour="red",alpha=0.1) +
+  geom_smooth(method="lm",alpha=0.1) 
+print(TempPlot)
+
+TempPlot <- ggplot(SummaryTemps,aes(x=Year,y=SD)) +
+  geom_point(aes(colour=SD)) +
+  geom_line() +
+  geom_smooth(method="loess",span = 0.2,colour="red",alpha=0.1) +
+  geom_smooth(method="lm",alpha=0.1) 
+print(TempPlot)
