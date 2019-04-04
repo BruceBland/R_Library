@@ -1,0 +1,15 @@
+# Function to load the instrument codes
+findInstrumentCode <- function(Instrument_id="",CodeType="FIM")
+{
+  # Better to use a query to get just the ones we want
+  qrylink <- dbSendQuery(con, paste("SELECT * FROM ALT_INSTRUMENT_ID WHERE INSTRUMENT_ID = '",Instrument_id,"'",sep=""))
+  InstCodes <- dbFetch(qrylink,n=-1) # get all from table (n = -1) or set n=5 to get in batches of 5
+  InstCodes <- subset(InstCodes,ALTERNATE_TYPE == CodeType)
+  
+  # Close the link
+  dbClearResult(qrylink)
+  
+  return(InstCodes$INSTRUMENT_CODE[1])
+}
+
+Order_Summary$FIM <- unlist(lapply(Order_Summary$INSTRUMENT_ID,findInstrumentCode,CodeType="FIM"))
