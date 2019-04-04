@@ -1,0 +1,37 @@
+# Basic R kit for reading Fidessa data
+#
+library(RMariaDB)
+library(DBI)
+
+con <- dbConnect(RMariaDB::MariaDB(), host="uklon-fi3l",port = "192.168.202.177",group = "my-db",user="root",password="fi3l74",dbname="test")
+
+# Get a list of all tables
+ListOfTables <- as.data.frame(dbListTables(con))
+
+# Get a list of fields
+ListOfFields <- dbListFields(con, "INSTRUMENT_VWAP")
+
+# Just get all records in a table
+InstVWAP <- dbReadTable(con, "INSTRUMENT_VWAP")
+
+# Better to use a query to get just the ones we want
+qrylink <- dbSendQuery(con, "SELECT * FROM INSTRUMENT_VWAP WHERE VWAP_VOLUME > 10")
+InstVWAP <- dbFetch(qrylink,n=-1) # get all from table (n = -1) or set n=5 to get in batches of 5
+QryCompleted <- dbHasCompleted(qrylink) # Will be TRUE if above fetch has returned all rows
+print("Data returned")
+print(InstVWAP)
+
+# What statement did we send
+QryStatement <- dbGetStatement(qrylink)
+print(paste("Query statement issued",QryStatement))
+
+# Finding out about the data returned
+QryColumnsReturned <- dbColumnInfo(qrylink)
+print("Query columns returned")
+print(QryColumnsReturned)
+
+# Close the link
+dbClearResult(qrylink)
+
+# Close database
+dbDisconnect(con)
