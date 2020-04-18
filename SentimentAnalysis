@@ -1,0 +1,65 @@
+
+# Sentiment analysis
+#
+#Sentiment Analysis is one of the most wanted and used NLP techniques. Companies like to see what their customers are talking about – like if there’s a new product launch then what’s the feedback about it. Whereever you’ve got Natural Language – like Social Media, Community Pages, Customer Support – Sentiment Analysis as a technique has found its home there.
+#While the technique itself is highly wanted, Sentiment Analysis is one of the NLP fields that’s far from super-accurate and the reason being is a lot of ways Humans talk. One of the aspects of it is called Valence Shifters like Negation that can flip the polarity of a sentence with one word.
+#“I’m happy” -> Positive
+#“I’m not happy” -> Negative
+#Because of this, a lot of out-of-box Sentiment analysis packages and libraries fail at tasks like this. Kudos to Tyler Rinker’s sentimentr R package that handles this scenario very well. sentimentr is a lexicon-based Sentiment Analysis Package that’s one of the best out-of-box sentiment analysis solution (given you don’t want to build a Sentiment Classification or you don’t want to use a Paid API like Google Cloud API).
+
+
+library(sentimentr)
+library(tidyverse)
+
+
+# Basic sentiment analysis on a single sentance
+text <- "This tutorial is not awesome. The creator is cool"
+
+# Analysis by sentance
+Analysis <- as_tibble(sentiment(text))
+print(Analysis)
+
+# Analysis by complete string
+sentiment_by(text, by = NULL)
+
+# Check for rudeness
+profanity(text)
+
+# Ok now load some real data from the sentimentr package
+debates <- presidential_debates_2012  
+
+# Sentiment analysis of dataframe
+debates_with_pol <- debates %>% 
+  get_sentences() %>% 
+  sentiment() %>% 
+  mutate(polarity_level = ifelse(sentiment < 0.2, "Negative",
+                                 ifelse(sentiment > 0.2, "Positive","Neutral")))
+
+# Show differences between speakers
+debates_with_pol %>% 
+  filter(role != "Moderator") %>%
+  filter(person != "QUESTION") %>%
+  ggplot() + geom_boxplot(aes(y = person, x = sentiment))
+
+# Density plots
+Sentances <- debates %>% 
+  get_sentences() %>% 
+  sentiment_by(by = NULL)
+
+Sentances <- cbind(debates,Sentances)
+
+MyWordsDensity <- ggplot(Sentances,aes(x=word_count,colour=person)) + 
+            geom_density() 
+print(MyWordsDensity)
+
+MySentDensity <- ggplot(Sentances,aes(x=ave_sentiment,colour=person)) + 
+  geom_density() 
+print(MySentDensity)
+
+# Profanity checker easily fooled
+RudeSentances <- debates %>% 
+  get_sentences() %>% 
+  profanity(by = NULL) %>%
+  filter(profanity > 0)
+print("Rude stuff found")
+print(RudeSentances$dialogue)
