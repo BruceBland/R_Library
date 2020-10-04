@@ -1,0 +1,121 @@
+library(udpipe)
+library(ggplot2)
+
+# Download the english language model
+#model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(file = 'english-ewt-ud-2.4-190531.udpipe')
+
+# Now give it a phrase to play with
+s <- udpipe_annotate(udmodel_english, c("As Myanmar's coronavirus infections soar, the work never seems to stop for volunteers who have stepped in to help carry those suspected of symptoms to quarantine centres or hospitals.",
+                                        "Bolivia's presidential candidates faced off late on Saturday in the first all-party campaign debate in almost two decades, but analysts chided the runners as having forgotten how to hold a proper discourse after a tepid event.",
+                                        "Coronavirus-wary animal owners in the Philippines had their pets blessed via a drive-through ceremony on Sunday to mark World Animal Day and the feast of Saint Francis of Assisi, the patron saint of animals.",
+                                        "Protesters blocked Port Sudan's container terminal and a road between the eastern city and the capital Khartoum on Sunday to protest against a peace deal signed by the government and groups from across the country, a union official and residents said.",
+                                        "The Italian government will likely impose new restrictions on the country in the coming week to try to beat back rising numbers of coronavirus cases, Health Minister Roberto Speranza said on Sunday.",
+                                        "Thousands of demonstrators in southern Germany protested against coronavirus restrictions over the weekend, police said on Sunday, although organisers failed to mobilise enough people for a planned human chain around Lake Constance.",
+                                        "British Prime Minister Boris Johnson said on Sunday he expected the next few months of the COVID-19 pandemic to be bumpy, but that things would look radically different in the spring.",
+                                        "London's Royal Opera House is to sell a 1970s painting by David Hockney as it seeks to raise cash to get through the COVID-19 pandemic, the worst crisis in its history.",
+                                        "Cineworld , the world's second-biggest cinema operator, said it was considering temporarily closing all its screens in the United States and Britain after studios pulled major releases such as the latest James Bond film.",
+                                        "British Prime Minister Johnson's government will try to look beyond the coronavirus pandemic and Brexit, and honour Conservative Party election commitments in its agenda for the next year, Johnson's office said in a statement on Sunday.",
+                                        "Britain reported 12,872 new COVID-19 cases on Saturday, a record daily figure for the country, with the government blaming the jump on a reporting delay and saying the numbers in coming days would include additional cases",
+                                        "Bruce really likes cake"))
+x <- data.frame(s)
+
+# Now show the distribution of nouns
+stats <- subset(x, upos %in% c("NOUN")) 
+stats <- txt_freq(stats$token)
+stats$key <- factor(stats$key, levels = rev(stats$key))
+
+stats <- filter(stats,freq > 1)
+Plot <- ggplot(stats) +
+  aes(x = key, y = freq, colour = freq_pct) +
+  geom_boxplot(fill = "#0c4c8a") +
+  scale_color_gradient() +
+  theme_minimal() +
+  labs(x = "Key", y = "Frequency", title = "Frequency of Nouns > 1", caption = "By UDPIPE R package") 
+  
+print(Plot)
+
+# Now show the distribution of Adjectives
+stats <- subset(x, upos %in% c("ADJ")) 
+stats <- txt_freq(stats$token)
+stats$key <- factor(stats$key, levels = rev(stats$key))
+stats <- filter(stats,freq > 0)
+
+Plot <- ggplot(head(stats,10)) +
+  aes(x = key, y = freq, colour = freq_pct) +
+  geom_boxplot(fill = "#0c4c8a") +
+  scale_color_gradient() +
+  theme_minimal() +
+  labs(x = "Key", y = "Frequency", title = "Frequency of Adjectives", caption = "By UDPIPE R package") 
+  
+print(Plot)
+
+# Now show the distribution of verbs
+stats <- subset(x, upos %in% c("VERB")) 
+stats <- txt_freq(stats$token)
+stats$key <- factor(stats$key, levels = rev(stats$key))
+stats <- filter(stats,freq > 0)
+
+Plot <- ggplot(head(stats,10)) +
+  aes(x = key, y = freq, colour = freq_pct) +
+  geom_boxplot(fill = "#0c4c8a") +
+  scale_color_gradient() +
+  theme_minimal() +
+  labs(x = "Key", y = "Frequency", title = "Frequency of Verbs", caption = "By UDPIPE R package") 
+  
+print(Plot)
+
+# Now find phrases
+# Time for some Machine Learning, or let’s say simply Algorithms. 
+# RAKE is one of the most popular (unsupervised) algorithms for extracting keywords in 
+# Information retrieval. RAKE short for Rapid Automatic Keyword Extraction algorithm, 
+# is a domain independent keyword extraction algorithm which tries to determine key phrases 
+# in a body of text by analyzing the frequency of word appearance and its co-occurrence 
+# with other words in the text.
+
+stats <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("NOUN", "ADJ"))
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+
+Plot <- ggplot(stats) +
+  aes(x = key, y = freq) +
+  geom_boxplot(fill = "#0c4c8a") +
+  scale_color_gradient() +
+  theme_minimal()  +
+  labs(x = "Key", y = "Frequency", title = "Noun + Adjective", caption = "By UDPIPE R package") 
+print(Plot)
+
+# In English (or probably in many languages), Simple a noun and a verb can form a phrase. 
+# Like, Dog barked — with the noun Dog and Barked, we can understand the context of the sentence. 
+# Reverse-engineering the same with this headlines data, 
+# let us bring out top phrases - that are just keywords/topics
+
+## Using a sequence of POS tags (noun phrases / verb phrases)
+x$phrase_tag <- as_phrasemachine(x$upos, type = "upos")
+stats <- keywords_phrases(x = x$phrase_tag, term = tolower(x$token), 
+                          pattern = "(A|N)*N(P+D*(A|N)*N)*", 
+                          is_regex = TRUE, detailed = FALSE)
+stats <- subset(stats, ngram > 1 & freq > 1)
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+Plot <- ggplot(stats) +
+  aes(x = key, y = freq) +
+  geom_boxplot(fill = "#0c4c8a") +
+  scale_color_gradient() +
+  theme_minimal()  +
+  labs(x = "Key", y = "Frequency", title = "Frequency of noun/verb phrases", caption = "By UDPIPE R package") 
+print(Plot)
+
+
+# Text sentimet
+Sentiment  <- txt_sentiment(as.data.frame(s),
+                            polarity_terms = data.frame(term = c("annoy", "like", "painful"), 
+                                                                         polarity = c(-1, 1, -1)),
+                            polarity_negators = c("not", "neither"), 
+                            polarity_amplifiers = c("pretty", "many", "really", "whatsoever"),
+                            polarity_deamplifiers = c("slightly", "somewhat"), 
+                            amplifier_weight = 0.8,
+                            n_before = 4, 
+                            n_after = 2, 
+                            constrain = FALSE)
+
+print(Sentiment$overall)
