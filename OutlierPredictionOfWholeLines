@@ -1,0 +1,53 @@
+# Examples from research
+
+# Github package : https://github.com/aefdz/localFDA
+# Package now available in CRAN
+
+# Overview
+# Software companion for the paper “Localization processes for functional data analysis” by Elías, Antonio, Jiménez, Raúl, and Yukich, Joe, (2020) <arXiv:2007.16059>. 
+# It provides the code for computing localization processes and localization distances and their application to classification and outlier detection problems.
+
+#load the package
+library(localFDA)
+
+# Example plot of that data
+#X <- exampleData
+#n <- ncol(X)
+#p <- nrow(X)
+#t <- as.numeric(rownames(X))
+#
+# #plot the data set
+#df_functions <- data.frame(ids = rep(colnames(X), each = p),
+#                           y = c(X),
+#                           x = rep(t, n)
+#)
+#
+#functions_plot <- ggplot(df_functions) + 
+#  geom_line(aes(x = x, y = y, group = ids, color = ids), 
+#            color = "black", alpha = 0.25) + 
+#  xlab("t") + theme(legend.position = "none")
+#
+#
+#print(functions_plot)
+#
+
+X <- exampleData
+
+outliers <- outlierLocalizationDistance(X, localrule = 0.50, whiskerrule = 0.5)
+
+print(outliers$outliers_ld_rule)
+
+df_functions <- data.frame(ids = rep(colnames(X), each = nrow(X)),
+                           y = c(X),
+                           x = rep(seq(from = 0, to = 1, length.out = nrow(X)), ncol(X)))
+
+
+functions_plot <- ggplot(df_functions) + 
+  geom_line(aes(x = x, y = y, group = ids), 
+            color = "black", alpha = 0.25) + 
+  xlab("t") + 
+  theme(legend.position = "none")+
+  geom_line(data = df_functions[df_functions$ids %in% outliers$outliers_ld_rule,], aes(x = x, y = y, group = ids, color = ids), size = 1) +
+  guides(color = guide_legend(title="Detected outliers"))
+
+print(functions_plot)
