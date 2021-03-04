@@ -1,0 +1,155 @@
+# Helper packages
+library(dplyr)       # for data manipulation
+library(ggplot2)     # for data visualization
+library(patchwork)   # group charts easily
+
+# Modeling packages
+library(cluster)     # for general clustering algorithms
+library(factoextra)  # for visualizing cluster results
+
+# For reproducibility
+#set.seed(123)
+
+SmallestBin <- 3.0
+LargestBin <- 6.0
+
+NoGroupsToFind <- nrow(mtcars) # Stops the algorithm at a finite point to prevent endless search
+
+
+# Allow multiple atempts at a solution
+TryingAgain <- TRUE
+TryingAgainLimit <- 100
+NoTryingAgainTrys <- 0
+
+while(TryingAgain == TRUE)
+{
+  # Set database that we are going to use
+  OriginalDF <- mtcars
+  ResultsDF <- NULL
+  
+  #Resample the data
+  OriginalDF <- OriginalDF[sample(nrow(OriginalDF), nrow(OriginalDF)), ]
+  
+  for (group in seq(1,NoGroupsToFind))
+  {
+    NumberOfRows <- nrow(OriginalDF)
+    SearchMax <- round(NumberOfRows/(SmallestBin*0.5))
+    SelectedRows <- NULL
+    
+    for (kk in seq(2,SearchMax))
+    {
+      print(paste("Trying kk of",kk, "with max search of",SearchMax))
+      
+      d <- dist(OriginalDF, method = "euclidean")
+      hc5 <- hclust(d, method = "ward.D2" )
+      
+      # Cut tree into n groups
+      sub_grp <- cutree(hc5, k = kk)
+      
+      Results <- as.data.frame(table(sub_grp)) 
+      print(Results)
+      
+      #MaxGroup <- Results %>% slice_max(Freq)
+      OkGroupsList <- Results %>% 
+        filter(Freq >= SmallestBin) %>%
+        filter(Freq <= LargestBin)
+      
+      print(OkGroupsList)
+      
+      if (nrow(OkGroupsList) >= 1)
+      {
+        #Now take a random row off ok ones list
+        RandomRow <- runif(1,1,nrow(OkGroupsList))
+        OkGroupsList <- OkGroupsList[RandomRow,]
+      
+        OkSize <- as.integer(as.character(OkGroupsList$Freq[1]))
+        
+        print(paste("Min size found", OkSize, " in range (",SmallestBin,"-",LargestBin,")"))
+          
+        # If the min in group is smaller than smalest bin, lets extract the group now and stop
+        if ((OkSize >= SmallestBin) & (OkSize <= LargestBin)) {
+          
+          print("Found a good sized group")
+          SelectGroup <- as.integer(OkGroupsList$sub_grp)
+      
+          SelectedRows <- as.data.frame(sub_grp) %>% 
+            filter(sub_grp == SelectGroup) %>%
+            rownames()
+          
+          break
+          
+        } else {
+          print("No group within range, will increase K and try again")
+        }
+      } else {
+        print("No rows with a group frequency that matches our selection .. continuing")
+      }
+    }
+    
+    OriginalDF$Names <- rownames(OriginalDF)
+    RowsSelected <- OriginalDF %>%
+      filter(Names %in% SelectedRows) %>%
+      mutate(Group = group)
+    print(RowsSelected)
+    ResultsDF <- rbind(ResultsDF,RowsSelected)
+    
+    OriginalDF <- OriginalDF %>%
+      filter(!Names %in% SelectedRows) %>%
+      select(-Names)
+    
+    if (nrow(OriginalDF) <= LargestBin) 
+    {
+      print("Sample size to small to get any more groups")
+      break
+    }
+    
+  }
+  
+  print(OriginalDF)
+  if (nrow(OriginalDF) <= LargestBin) 
+  {
+    print("It works !! See ResultsDF for final groupings")
+    
+    OriginalDF$Group <- group + 1
+    OriginalDF$Names <- rownames(OriginalDF)
+    ResultsDF <- rbind(ResultsDF,OriginalDF)
+    ResultsDF$Group <- as.factor(ResultsDF$Group)
+    
+    TryingAgain <- FALSE
+    
+  } else {
+    
+    NoTryingAgainTrys <- NoTryingAgainTrys + 1
+    if (NoTryingAgainTrys > TryingAgainLimit)
+    {
+      print("Cannot find a solution, adjust the min and max cluster sizes and try again")
+      break
+    } else {
+      print(paste("Failed... trying again ..",NoTryingAgainTrys,"out of",TryingAgainLimit))
+      print("")
+    }
+  }
+
+}
+
+# Visual check
+Plot1 <- ggplot(ResultsDF,aes(x=disp,y = qsec,colour=Group)) +
+  geom_point(size=3)
+  
+Plot2 <- ggplot(ResultsDF,aes(x=drat,y = hp,colour=Group)) +
+  geom_point(size=3)
+
+Plot3 <- ggplot(ResultsDF,aes(x=wt,y = mpg,colour=Group)) +
+  geom_point(size=3)
+
+Plot4 <- ggplot(ResultsDF,aes(x=gear,y = carb,colour=Group)) +
+  geom_point(size=3)
+
+
+Plot <- (Plot1 + Plot2) / (Plot3 + Plot4) + plot_annotation(
+  title = 'Cluster results',
+  subtitle = 'Created using a hybrid clustering technique',
+  caption = 'Only for experimental use'
+)
+
+print(Plot)
